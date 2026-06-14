@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecto — Социальная сеть (Supabase)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* === ТВОЙ СТАРЫЙ CSS (КОПИРУЙ ИЗ ПЕРВОГО ФАЙЛА, НО Я ДАЮ МИНИМАЛЬНЫЙ ДЛЯ РАБОТЫ) === */
+        :root {
+            --bg: #111827;
+            --surface: #1f2937;
+            --border: #374151;
+            --text: #f9fafb;
+            --text-secondary: #9ca3af;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --danger: #ef4444;
+            --online: #22c55e;
+            --premium: #f59e0b;
+            --verified: #22c55e;
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); color: var(--text); height: 100vh; display: flex; }
+        .sidebar {
+            width: 260px; background: var(--surface); display: flex; flex-direction: column;
+            border-right: 1px solid var(--border); padding: 20px 0; height: 100vh; position: fixed; z-index: 50;
+        }
+        .logo { font-size: 2em; font-weight: 700; padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; color: var(--accent); }
+        .nav { list-style: none; flex: 1; }
+        .nav li { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 1.1em; transition: background 0.2s; color: var(--text-secondary); }
+        .nav li:hover, .nav li.active { background: rgba(255,255,255,0.05); color: var(--text); }
+        .nav li.active { border-right: 3px solid var(--accent); font-weight: 600; }
+        .user-info { padding: 20px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #4b5563; display: flex; align-items: center; justify-content: center; font-size: 1.4em; }
+        .username { font-weight: 500; }
+        .logout-btn { color: var(--danger); cursor: pointer; font-size: 0.9em; margin-top: 4px; }
+        .main { flex: 1; margin-left: 260px; padding: 20px 40px; overflow-y: auto; height: 100vh; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .card { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+        .btn { padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; background: var(--accent); color: white; transition: background 0.2s; }
+        .btn:hover { background: var(--accent-hover); }
+        .post { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .empty-state { color: var(--text-secondary); text-align: center; margin-top: 40px; }
+        .hidden { display: none !important; }
+        .chat-container { display: flex; height: calc(100vh - 120px); gap: 20px; }
+        .chat-list { width: 280px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow-y: auto; }
+        .chat-user { padding: 12px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+        .chat-messages { flex: 1; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); display: flex; flex-direction: column; }
+        .messages-area { flex: 1; overflow-y: auto; padding: 20px; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 18px; margin-bottom: 10px; }
+        .message.sent { align-self: flex-end; background: var(--accent); margin-left: auto; }
+        .message.received { align-self: flex-start; background: #374151; }
+        .chat-input-area { padding: 15px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+        .chat-input-area input { flex: 1; background: #374151; border: none; padding: 10px; border-radius: 20px; color: white; }
+        .friends-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .friend-card { background: var(--surface); border-radius: var(--radius); padding: 15px; display: flex; align-items: center; gap: 12px; }
+        .profile-avatar { font-size: 4em; width: 100px; height: 100px; background: #4b5563; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        /* остальное по необходимости, но для работы кнопок хватит */
+    </style>
+</head>
+<body>
+
+<div class="sidebar hidden" id="sidebar">
+    <div class="logo">Connecto</div>
+    <ul class="nav">
+        <li data-section="feed">🏠 Лента</li>
+        <li data-section="chat">💬 Чат</li>
+        <li data-section="friends">👥 Друзья</li>
+        <li data-section="profile">👤 Профиль</li>
+        <li data-section="settings">⚙️ Настройки</li>
+        <li data-section="admin" id="adminNavItem" class="hidden">🛡️ Админ</li>
+    </ul>
+    <div class="user-info">
+        <div class="avatar" id="sidebarAvatar">?</div>
+        <div>
+            <div class="username" id="sidebarName">Гость</div>
+            <div class="logout-btn" id="logoutBtn">Выйти</div>
+        </div>
+    </div>
+</div>
+
+<div class="main" id="mainContent">
+    <!-- Форма входа/регистрации -->
+    <div class="section active" id="authSection">
+        <div class="card" style="max-width: 400px; margin: 100px auto;">
+            <div id="loginForm">
+                <h2>Вход</h2>
+                <input type="email" id="loginEmail" placeholder="Email" style="width:100%; margin-bottom:10px; padding:10px;">
+                <input type="password" id="loginPassword" placeholder="Пароль" style="width:100%; margin-bottom:10px; padding:10px;">
+                <button class="btn" id="loginBtn" style="width:100%;">Войти</button>
+                <p style="margin-top:10px; cursor:pointer; color:var(--text-secondary);" id="showRegisterBtn">Нет аккаунта? Зарегистрироваться</p>
+            </div>
+            <div id="registerForm" style="display:none;">
+                <h2>Регистрация</h2>
+                <input type="text" id="regName" placeholder="Имя" style="width:100%; margin-bottom:10px; padding:10px;">
+                <input type="email" id="regEmail" placeholder="Email" style="width:100%; margin-bottom:10px; padding:10px;">
+                <input type="password" id="regPassword" placeholder="Пароль" style="width:100%; margin-bottom:10px; padding:10px;">
+                <button class="btn" id="registerBtn" style="width:100%;">Зарегистрироваться</button>
+                <p style="margin-top:10px; cursor:pointer; color:var(--text-secondary);" id="showLoginBtn">Уже есть аккаунт? Войти</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Разделы после входа -->
+    <div class="section" id="feedSection"><div class="card"><h2>Новый пост</h2><textarea id="postText" rows="3" style="width:100%; margin-bottom:10px;"></textarea><button class="btn" id="createPostBtn">Опубликовать</button></div><div id="postsContainer"></div></div>
+    <div class="section" id="chatSection"><div class="chat-container"><div class="chat-list" id="chatUserList"></div><div class="chat-messages"><div class="messages-area" id="messagesArea"><div class="empty-state">Выберите чат</div></div><div class="chat-input-area hidden" id="chatInputArea"><input type="text" id="messageInput" placeholder="Сообщение..."><button class="btn" id="sendMsgBtn">Отправить</button></div></div></div></div>
+    <div class="section" id="friendsSection"><div class="card"><h2>Мои друзья</h2><div id="friendsListContainer"></div></div><div class="card"><h2>Запросы</h2><div id="friendRequestsContainer"></div></div></div>
+    <div class="section" id="profileSection"><div id="profileInfo"></div><div id="myPostsContainer"></div></div>
+    <div class="section" id="settingsSection"><div class="card"><h2>Настройки</h2><input type="text" id="settingsName" placeholder="Имя"><button class="btn" id="saveSettingsBtn">Сохранить</button></div></div>
+    <div class="section" id="adminSection"><div class="card"><h2>Админка</h2><div id="adminContent">Только для админов</div></div></div>
+</div>
+
+<script>
+    // ==================== ВСТАВЬ СВОИ ДАННЫЕ SUPABASE ====================
+    const SUPABASE_URL = 'https://ВАШ_ПРОЕКТ.supabase.co';   // ЗАМЕНИТЕ
+    const SUPABASE_KEY = 'ВАШ_ANON_KEY';                     // ЗАМЕНИТЕ
+    // ==================================================================
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let currentUser = null;
+    let activeChatUser = null;
+    let messagesChannel = null;
+
+    // ---------- Вспомогательные функции ----------
+    async function refreshCurrentUser() {
+        if (!currentUser) return;
+        const { data, error } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
+        if (!error && data) currentUser = data;
+    }
+
+    function showSection(sectionId) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const sec = document.getElementById(sectionId + 'Section');
+        if (sec) sec.classList.add('active');
+        document.querySelectorAll('.nav li').forEach(li => li.classList.remove('active'));
+        const activeNav = document.querySelector(`.nav li[data-section="${sectionId}"]`);
+        if (activeNav) activeNav.classList.add('active');
+        if (sectionId === 'feed') renderFeed();
+        else if (sectionId === 'chat') renderChatList();
+        else if (sectionId === 'friends') renderFriends();
+        else if (sectionId === 'profile') renderProfile();
+    }
+
+    async function renderFeed() {
+        const container = document.getElementById('postsContainer');
+        if (!container) return;
+        container.innerHTML = '<div class="empty-state">Загрузка...</div>';
+        const { data: posts, error } = await supabase
+            .from('posts')
+            .select('*, users(name, avatar, is_verified)')
+            .order('created_at', { ascending: false });
+        if (error || !posts.length) { container.innerHTML = '<div class="empty-state">Нет постов</div>'; return; }
+        container.innerHTML = '';
+        for (let post of posts) {
+            const div = document.createElement('div');
+            div.className = 'post';
+            div.innerHTML = `
+                <div class="post-header">
+                    <div class="avatar">${post.users?.avatar || '👤'}</div>
+                    <div><strong>${post.users?.name}</strong> ${post.users?.is_verified ? '✔️' : ''}<br><small>${new Date(post.created_at).toLocaleString()}</small></div>
+                </div>
+                <div>${post.text}</div>
+                ${post.image_url ? `<img src="${post.image_url}" style="max-width:100%; margin-top:10px;">` : ''}
+            `;
+            container.appendChild(div);
+        }
+    }
+
+    async function renderChatList() {
+        const list = document.getElementById('chatUserList');
+        if (!list) return;
+        list.innerHTML = '<div class="empty-state">Загрузка...</div>';
+        const { data: users, error } = await supabase.from('users').select('id, name, avatar, is_verified').neq('id', currentUser.id);
+        if (error || !users.length) { list.innerHTML = '<div class="empty-state">Нет пользователей</div>'; return; }
+        list.innerHTML = '';
+        for (let user of users) {
+            const div = document.createElement('div');
+            div.className = 'chat-user';
+            div.innerHTML = `<div class="avatar">${user.avatar || '👤'}</div><span>${user.name}</span>`;
+            div.addEventListener('click', () => openChat(user));
+            list.appendChild(div);
+        }
+    }
+
+    async function openChat(user) {
+        activeChatUser = user;
+        const area = document.getElementById('messagesArea');
+        area.innerHTML = '<div class="empty-state">Загрузка...</div>';
+        const chatId = [currentUser.id, user.id].sort().join('_');
+        const { data: msgs } = await supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at');
+        area.innerHTML = '';
+        if (!msgs.length) area.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+        msgs.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `message ${msg.from_user === currentUser.id ? 'sent' : 'received'}`;
+            div.innerHTML = `<div>${msg.text}</div><small>${new Date(msg.created_at).toLocaleTimeString()}</small>`;
+            area.appendChild(div);
+        });
+        area.scrollTop = area.scrollHeight;
+        document.getElementById('chatInputArea').classList.remove('hidden');
+        if (messagesChannel) messagesChannel.unsubscribe();
+        messagesChannel = supabase.channel(`chat-${chatId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, payload => {
+                const msg = payload.new;
+                const div = document.createElement('div');
+                div.className = `message ${msg.from_user === currentUser.id ? 'sent' : 'received'}`;
+                div.innerHTML = `<div>${msg.text}</div><small>${new Date(msg.created_at).toLocaleTimeString()}</small>`;
+                document.getElementById('messagesArea').appendChild(div);
+                document.getElementById('messagesArea').scrollTop = document.getElementById('messagesArea').scrollHeight;
+            })
+            .subscribe();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim();
+        if (!text || !activeChatUser) return;
+        const chatId = [currentUser.id, activeChatUser.id].sort().join('_');
+        const { error } = await supabase.from('messages').insert({ chat_id: chatId, from_user: currentUser.id, text });
+        if (!error) input.value = '';
+    }
+
+    async function renderFriends() {
+        const container = document.getElementById('friendsListContainer');
+        if (!container) return;
+        const { data: friendships } = await supabase.from('friendships').select('friend_id').eq('user_id', currentUser.id);
+        const friendIds = friendships.map(f => f.friend_id);
+        if (!friendIds.length) { container.innerHTML = '<div class="empty-state">Нет друзей</div>'; return; }
+        const { data: friends } = await supabase.from('users').select('id, name, avatar').in('id', friendIds);
+        container.innerHTML = '';
+        friends.forEach(f => {
+            const div = document.createElement('div');
+            div.className = 'friend-card';
+            div.innerHTML = `<div class="avatar">${f.avatar || '👤'}</div><div>${f.name}</div>`;
+            container.appendChild(div);
+        });
+    }
+
+    async function renderProfile() {
+        await refreshCurrentUser();
+        const container = document.getElementById('profileInfo');
+        if (container) container.innerHTML = `<div class="profile-avatar">${currentUser.avatar || '👤'}</div><h2>${currentUser.name}</h2><p>${currentUser.is_premium ? '⭐ Премиум' : ''}</p>`;
+        const myPostsDiv = document.getElementById('myPostsContainer');
+        if (!myPostsDiv) return;
+        const { data: posts } = await supabase.from('posts').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+        myPostsDiv.innerHTML = '';
+        if (posts.length) posts.forEach(p => { myPostsDiv.innerHTML += `<div class="post"><div>${p.text}</div><small>${new Date(p.created_at).toLocaleString()}</small></div>`; });
+        else myPostsDiv.innerHTML = '<div class="empty-state">Нет постов</div>';
+    }
+
+    // ---------- Аутентификация ----------
+    async function login() {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) { alert(error.message); return; }
+        const { data: userData, error: userError } = await supabase.from('users').select('*').eq('id', data.user.id).single();
+        if (userError) { alert('Ошибка загрузки профиля'); return; }
+        currentUser = userData;
+        document.getElementById('sidebar').classList.remove('hidden');
+        document.getElementById('sidebarAvatar').innerText = currentUser.avatar || currentUser.name.charAt(0);
+        document.getElementById('sidebarName').innerText = currentUser.name;
+        document.getElementById('mainContent').style.marginLeft = '260px';
+        document.getElementById('authSection').classList.remove('active');
+        showSection('feed');
+        // Обновить админ-пункт
+        const isAdmin = currentUser.is_admin || currentUser.is_junior_admin;
+        document.getElementById('adminNavItem').classList.toggle('hidden', !isAdmin);
+        // Запустить обновление онлайн
+        setInterval(async () => {
+            if (currentUser) await supabase.from('user_status').upsert({ user_id: currentUser.id, last_seen: new Date(), is_online: true });
+        }, 30000);
+    }
+
+    async function register() {
+        const name = document.getElementById('regName').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        if (!name || !email || !password) { alert('Заполните все поля'); return; }
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
+        if (authError) { alert(authError.message); return; }
+        const { error: insertError } = await supabase.from('users').insert({
+            id: authData.user.id, email, name, avatar: '👤', is_premium: false, is_verified: false, is_admin: false, is_junior_admin: false
+        });
+        if (insertError) { alert('Ошибка создания профиля'); return; }
+        alert('Регистрация успешна! Теперь войдите.');
+        document.getElementById('registerForm').style.display = 'none';
+        document.getElementById('loginForm').style.display = 'block';
+    }
+
+    async function logout() {
+        await supabase.auth.signOut();
+        if (messagesChannel) messagesChannel.unsubscribe();
+        currentUser = null;
+        document.getElementById('sidebar').classList.add('hidden');
+        document.getElementById('mainContent').style.marginLeft = '0';
+        document.getElementById('authSection').classList.add('active');
+        document.querySelectorAll('.section').forEach(s => { if (s.id !== 'authSection') s.classList.remove('active'); });
+    }
+
+    // ---------- Привязка событий (ГЛОБАЛЬНО) ----------
+    window.login = login;
+    window.register = register;
+    window.logout = logout;
+    window.sendMessage = sendMessage;
+    window.renderFeed = renderFeed;
+    window.renderChatList = renderChatList;
+    window.renderFriends = renderFriends;
+    window.renderProfile = renderProfile;
+    window.openChat = openChat;
+
+    // При загрузке страницы навешиваем обработчики
+    window.addEventListener('DOMContentLoaded', async () => {
+        // Кнопки входа/регистрации
+        document.getElementById('loginBtn')?.addEventListener('click', login);
+        document.getElementById('registerBtn')?.addEventListener('click', register);
+        document.getElementById('logoutBtn')?.addEventListener('click', logout);
+        document.getElementById('showRegisterBtn')?.addEventListener('click', () => {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        });
+        document.getElementById('showLoginBtn')?.addEventListener('click', () => {
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+        });
+        document.getElementById('createPostBtn')?.addEventListener('click', async () => {
+            const text = document.getElementById('postText').value.trim();
+            if (!text) return;
+            await supabase.from('posts').insert({ user_id: currentUser.id, text });
+            document.getElementById('postText').value = '';
+            renderFeed();
+        });
+        document.getElementById('sendMsgBtn')?.addEventListener('click', sendMessage);
+        document.getElementById('messageInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        document.getElementById('saveSettingsBtn')?.addEventListener('click', async () => {
+            const newName = document.getElementById('settingsName').value.trim();
+            if (newName && currentUser) {
+                await supabase.from('users').update({ name: newName }).eq('id', currentUser.id);
+                await refreshCurrentUser();
+                document.getElementById('sidebarName').innerText = currentUser.name;
+                alert('Имя обновлено');
+            }
+        });
+
+        // Навигация
+        document.querySelectorAll('.nav li').forEach(li => {
+            li.addEventListener('click', () => showSection(li.getAttribute('data-section')));
+        });
+
+        // Проверка существующей сессии
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const { data: userData } = await supabase.from('users').select('*').eq('id', session.user.id).single();
+            if (userData) {
+                currentUser = userData;
+                document.getElementById('sidebar').classList.remove('hidden');
+                document.getElementById('sidebarAvatar').innerText = currentUser.avatar || currentUser.name.charAt(0);
+                document.getElementById('sidebarName').innerText = currentUser.name;
+                document.getElementById('mainContent').style.marginLeft = '260px';
+                document.getElementById('authSection').classList.remove('active');
+                const isAdmin = currentUser.is_admin || currentUser.is_junior_admin;
+                document.getElementById('adminNavItem').classList.toggle('hidden', !isAdmin);
+                showSection('feed');
+            }
+        } else {
+            document.getElementById('authSection').classList.add('active');
+        }
+    });
+</script>
+</body>
+</html>
